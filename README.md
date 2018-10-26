@@ -4,6 +4,7 @@
 nvm use v9.5.0
 git clone https://github.com/iteleport/ionic
 cd ionic
+git checkout iteleport-ionic-3.9.2
 npm i
 npm i -g gulp-cli
 gulp release.prepareReleasePackage
