@@ -1,3 +1,17 @@
+## Build instructions for iteleport team
+
+```
+nvm use v9.5.0
+git clone https://github.com/iteleport/ionic
+cd ionic
+npm i
+npm i -g gulp-cli
+gulp release.prepareReleasePackage
+# ./dist now contains the `ionic-angular` folder which is what this repo is
+```
+
+## Generic Ionic Comments Below
+
 ## Ionic Framework
 
 The official npm package for [Ionic](http://ionicframework.com/), complete with pre-built ES5 bundles, TypeScript definitions, Sass files, CommonJS ES5 files, and more.
