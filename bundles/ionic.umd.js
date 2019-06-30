@@ -20,9 +20,12 @@ and limitations under the License.
 ***************************************************************************** */
 /* global Reflect, Promise */
 
-var extendStatics = Object.setPrototypeOf ||
-    ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
-    function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+var extendStatics = function(d, b) {
+    extendStatics = Object.setPrototypeOf ||
+        ({ __proto__: [] } instanceof Array && function (d, b) { d.__proto__ = b; }) ||
+        function (d, b) { for (var p in b) if (b.hasOwnProperty(p)) d[p] = b[p]; };
+    return extendStatics(d, b);
+};
 
 function __extends$1(d, b) {
     extendStatics(d, b);
@@ -30,7 +33,16 @@ function __extends$1(d, b) {
     d.prototype = b === null ? Object.create(b) : (__.prototype = b.prototype, new __());
 }
 
-
+var __assign = function() {
+    __assign = Object.assign || function __assign(t) {
+        for (var s, i = 1, n = arguments.length; i < n; i++) {
+            s = arguments[i];
+            for (var p in s) if (Object.prototype.hasOwnProperty.call(s, p)) t[p] = s[p];
+        }
+        return t;
+    }
+    return __assign.apply(this, arguments);
+}
 
 
 
@@ -24113,7 +24125,11 @@ var Config = (function () {
      */
     Config.prototype.getNumber = function (key, fallbackValue) {
         if (fallbackValue === void 0) { fallbackValue = NaN; }
-        var val = parseFloat(this.get(key));
+        return this.parseNumber(this.get(key), fallbackValue);
+    };
+    Config.prototype.parseNumber = function (value, fallbackValue) {
+        if (fallbackValue === void 0) { fallbackValue = NaN; }
+        var val = parseFloat(value);
         return isNaN(val) ? fallbackValue : val;
     };
     /**
@@ -24340,7 +24356,8 @@ var ViewController = (function () {
         this.data = (data instanceof NavParams ? data.data : (isPresent(data) ? data : {}));
         this._cssClass = rootCssClass;
         this._ts = Date.now();
-        window.addEventListener('orientationchange', this.handleOrientationChange.bind(this));
+        this._bindHandler = this.handleOrientationChange.bind(this);
+        window.addEventListener('orientationchange', this._bindHandler);
     }
     ViewController.prototype.handleOrientationChange = function () {
         if (this.getContent()) {
@@ -24720,7 +24737,7 @@ var ViewController = (function () {
                 renderer.setElementAttribute(cmpEle, 'class', null);
                 renderer.setElementAttribute(cmpEle, 'style', null);
             }
-            window.removeEventListener('orientationchange', this.handleOrientationChange.bind(this));
+            window.removeEventListener('orientationchange', this._bindHandler);
             // completely destroy this component. boom.
             this._cmp.destroy();
         }
@@ -24874,7 +24891,7 @@ var DIRECTION_SWITCH = 'switch';
 /**
  * @name MenuController
  * @description
- * The MenuController is a provider which makes it easy to control a [Menu](../../Menu/Menu/).
+ * The MenuController is a provider which makes it easy to control a [Menu](../../menu/Menu/).
  * Its methods can be used to display the menu, enable the menu, toggle the menu, and more.
  * The controller will grab a reference to the menu by the `side`, `id`, or, if neither
  * of these are passed to it, it will grab the first menu it finds.
@@ -24882,7 +24899,7 @@ var DIRECTION_SWITCH = 'switch';
  *
  * @usage
  *
- * Add a basic menu component to start with. See the [Menu](../../Menu/Menu/) API docs
+ * Add a basic menu component to start with. See the [Menu](../../menu/Menu/) API docs
  * for more information on adding menu components.
  *
  * ```html
@@ -24980,7 +24997,7 @@ var DIRECTION_SWITCH = 'switch';
  * @demo /docs/demos/src/menu/
  *
  * @see {@link /docs/components#menus Menu Component Docs}
- * @see {@link ../Menu Menu API Docs}
+ * @see {@link /docs/api/components/menu/Menu/ Menu API Docs}
  *
  */
 var MenuController = (function () {
@@ -25446,6 +25463,7 @@ var Platform = (function () {
      * | phablet         | on a phablet device.               |
      * | tablet          | on a tablet device.                |
      * | windows         | on a device running Windows.       |
+     * | electron        | in Electron on a desktop device.   |
      *
      * @param {string} platformName
      */
@@ -29678,7 +29696,7 @@ var BlockerDelegate = (function () {
  *
  * ## Pushing a View
  * To push a new view onto the navigation stack, use the `push` method.
- * If the page has an [`<ion-navbar>`](../../navbar/Navbar/),
+ * If the page has an [`<ion-navbar>`](../../components/toolbar/Navbar/),
  * a back button will automatically be added to the pushed view.
  *
  * Data can also be passed to a view by passing an object to the `push` method.
@@ -29796,6 +29814,7 @@ var BlockerDelegate = (function () {
  *  | `ionViewCanEnter`   | boolean/Promise&lt;void&gt; | Runs before the view can enter. This can be used as a sort of "guard" in authenticated views where you need to check permissions before the view can enter                                                                                                     |
  *  | `ionViewCanLeave`   | boolean/Promise&lt;void&gt; | Runs before the view can leave. This can be used as a sort of "guard" in authenticated views where you need to check permissions before the view can leave                                                                                                     |
  *
+ * Those events are only fired on IonicPage, for classic Angular Component, use [Angular Lifecycle Hooks](https://angular.io/guide/lifecycle-hooks).
  *
  * ## Nav Guards
  *
@@ -31055,6 +31074,27 @@ var NavControllerBase = (function (_super) {
                 this._didLeave(leavingView);
             }
             this._cleanup(enteringView);
+            /**
+             * On iOS 12.2 there is a bug that
+             * causes scrolling to not
+             * be re-enabled unless there
+             * is some kind of CSS reflow triggered
+             */
+            var platform_1 = this.plt;
+            if (enteringView &&
+                enteringView.getIONContentRef &&
+                enteringView.getIONContentRef() &&
+                platform_1.is('ios')) {
+                platform_1.timeout(function () {
+                    platform_1.raf(function () {
+                        var content = enteringView.getIONContentRef().nativeElement;
+                        content.style.zIndex = '1';
+                        platform_1.raf(function () {
+                            content.style.zIndex = '';
+                        });
+                    });
+                }, 500);
+            }
         }
         else {
             // If transition does not complete, we have to cleanup anyway, because
@@ -31721,6 +31761,19 @@ var IonicApp = (function (_super) {
             clearTimeout(this._tmr);
             (void 0) /* console.debug */;
             this.setElementClass('disable-scroll', false);
+            /**
+             * On iOS 12.2 there is a bug that
+             * prevents pointer-events from being
+             * re-enabled when removing the
+             * disable-scroll class.
+             */
+            var plaform_1 = this._plt;
+            plaform_1.raf(function () {
+                _this.setElementStyle('z-index', '1');
+                plaform_1.raf(function () {
+                    _this.setElementStyle('z-index', null);
+                });
+            });
         }
     };
     IonicApp.prototype.stopScroll = function () {
@@ -32187,7 +32240,7 @@ var ActionSheet = (function (_super) {
  * | icon     | `icon`   | The buttons icons.                                                                                                                               |
  * | handler  | `any`    | An express the button should evaluate.                                                                                                           |
  * | cssClass | `string` | Additional classes for custom styles, separated by spaces.                                                                                       |
- * | role     | `string` | How the button should be displayed, `destructive` or `cancel`. If not role is provided, it will display the button without any additional styles.|
+ * | role     | `string` | How the button should be displayed, `destructive` or `cancel`. If no role is provided, it will display the button without any additional styles. |
  *
  *
  * ### Dismissing And Async Navigation
@@ -32515,7 +32568,7 @@ var AlertCmp = (function () {
                         '<ng-template ngSwitchDefault>' +
                         '<div class="alert-input-group">' +
                         '<div *ngFor="let i of d.inputs" class="alert-input-wrapper">' +
-                        '<input [placeholder]="i.placeholder" [(ngModel)]="i.value" [type]="i.type" dir="auto" [min]="i.min" [max]="i.max" [attr.id]="i.id" class="alert-input">' +
+                        '<input [placeholder]="i.placeholder" [(ngModel)]="i.value" [type]="i.type" dir="auto" [min]="i.min" [max]="i.max" [attr.id]="i.id" [disabled]="i.disabled" class="alert-input">' +
                         '</div>' +
                         '</div>' +
                         '</ng-template>' +
@@ -32834,6 +32887,7 @@ var Alert = (function (_super) {
  *     subTitle: '10% of battery remaining',
  *     buttons: ['Dismiss']
  *   });
+ *   alert.onDidDismiss(() => console.log('Alert was dismissed by the user'));
  *   alert.present();
  * }
  *
@@ -32857,6 +32911,7 @@ var Alert = (function (_super) {
  *       }
  *     ]
  *   });
+ *   alert.onDidDismiss(() => console.log('Alert was dismissed by the user'));
  *   alert.present();
  * }
  *
@@ -32924,6 +32979,7 @@ var Alert = (function (_super) {
  *  | value       | `string`  | The input's value.                                              |
  *  | label       | `string`  | The input's label (only for radio/checkbox inputs)              |
  *  | checked     | `boolean` | Whether or not the input is checked.                            |
+ *  | disabled    | `boolean` | Whether or not the input is disabled.                           |
  *  | id          | `string`  | The input's id.                                                 |
  *
  *  Button options
@@ -32934,6 +32990,11 @@ var Alert = (function (_super) {
  *  | handler  | `any`    | Emitted when the button is pressed.                             |
  *  | cssClass | `string` | An additional CSS class for the button.                         |
  *  | role     | `string` | The buttons role, null or `cancel`.                             |
+ *
+ * ### Detecting dismissal
+ *
+ * Any dismissal of the alert (including backdrop) can be detected
+ * using the method `onDidDismiss(() => {})`.
  *
  * ### Dismissing And Async Navigation
  *
@@ -43775,6 +43836,7 @@ var MAX_PICKER_SPEED = 60;
  */
 var PickerColumnCmp = (function () {
     function PickerColumnCmp(config, _plt, elementRef, _zone, _haptic, plt, domCtrl) {
+        this.config = config;
         this._plt = _plt;
         this.elementRef = elementRef;
         this._zone = _zone;
@@ -43784,8 +43846,6 @@ var PickerColumnCmp = (function () {
         this.startY = null;
         this.ionChange = new EventEmitter();
         this.events = new UIEventManager(plt);
-        this.rotateFactor = config.getNumber('pickerRotateFactor', 0);
-        this.scaleFactor = config.getNumber('pickerScaleFactor', 1);
         this.decelerateFunc = this.decelerate.bind(this);
         this.debouncer = domCtrl.debouncer();
     }
@@ -43804,6 +43864,19 @@ var PickerColumnCmp = (function () {
             capture: true,
             zone: false
         });
+        this.rotateFactor = this.config.getNumber('pickerRotateFactor', 0);
+        this.scaleFactor = this.config.getNumber('pickerScaleFactor', 1);
+        if (this.col.mode) {
+            var configMode = this.config.getModeConfig(this.col.mode);
+            var getRotateFactor = configMode.pickerRotateFactor;
+            var getScaleFactor = configMode.pickerScaleFactor;
+            if (getRotateFactor !== undefined) {
+                this.rotateFactor = this.config.parseNumber(getRotateFactor, this.rotateFactor);
+            }
+            if (getScaleFactor !== undefined) {
+                this.scaleFactor = this.config.parseNumber(getScaleFactor, this.scaleFactor);
+            }
+        }
     };
     PickerColumnCmp.prototype.ngOnDestroy = function () {
         this._plt.cancelRaf(this.rafId);
@@ -44137,7 +44210,7 @@ var PickerCmp = (function () {
         this._elementRef = _elementRef;
         this._gestureBlocker = gestureCtrl.createBlocker(BLOCK_ALL);
         this.d = params.data;
-        this.mode = config.get('mode');
+        this.mode = this.d.mode || config.get('mode');
         renderer.setElementClass(_elementRef.nativeElement, "picker-" + this.mode, true);
         if (this.d.cssClass) {
             this.d.cssClass.split(' ').forEach(function (cssClass) {
@@ -44148,6 +44221,7 @@ var PickerCmp = (function () {
         this.lastClick = 0;
     }
     PickerCmp.prototype.ionViewWillLoad = function () {
+        var _this = this;
         // normalize the data
         var data = this.d;
         data.buttons = data.buttons.map(function (button) {
@@ -44164,12 +44238,13 @@ var PickerCmp = (function () {
             if (!isPresent(column.options)) {
                 column.options = [];
             }
+            column.mode = _this.mode;
             column.selectedIndex = column.selectedIndex || 0;
             column.options = column.options.map(function (inputOpt) {
                 var opt = {
                     text: '',
                     value: '',
-                    disabled: inputOpt.disabled,
+                    disabled: inputOpt.disabled
                 };
                 if (isPresent(inputOpt)) {
                     if (isString(inputOpt) || isNumber(inputOpt)) {
@@ -45669,7 +45744,7 @@ var __extends$48 = (undefined && undefined.__extends) || (function () {
   *
   * @description
   * FABs (Floating Action Buttons) are standard material design components. They are shaped as a circle that represents a promoted action. When pressed, it may contain more related actions.
-  * FABs as its name suggests are floating over the content in a fixed position. This is not achieved exclusively with `<button ion-fab>Button</button>` but it has to wrapped with the `<ion-fab>` component, like this:
+  * FABs as its name suggests are floating over the content in a fixed position. This is not achieved exclusively with `<button ion-fab>Button</button>` but it has to be wrapped with the `<ion-fab>` component, like this:
   *
   * ```html
   * <ion-content>
@@ -47607,8 +47682,8 @@ var __extends$49 = (undefined && undefined.__extends) || (function () {
  * `checkbox`, `radio`, `toggle`, `range`, `select`, etc.
  *
  * Along with the blur/focus events, `input` support all standard text input
- * events like `keyup`, `keydown`, `keypress`, `input`,etc. Any standard event
- * can be attached and will function as expected.
+ * events like `keyup`, `keydown`, `keypress`, `input`, etc. Any standard event
+ * can be attached and will function as expected. Example: `<ion-input (click)="someFunction()"></ion-input>`
  *
  * @usage
  * ```html
@@ -48796,9 +48871,9 @@ var ITEM_SIDE_FLAG_BOTH = ITEM_SIDE_FLAG_LEFT | ITEM_SIDE_FLAG_RIGHT;
  *
  * ```html
  *
- * <ion-item-sliding (ionSwipe)="delete(item)">
+ * <ion-item-sliding>
  *   <ion-item>Item</ion-item>
- *   <ion-item-options>
+ *   <ion-item-options (ionSwipe)="delete(item)">
  *     <button ion-button expandable (click)="delete(item)">Delete</button>
  *   </ion-item-options>
  * </ion-item-sliding>
@@ -50292,7 +50367,7 @@ var Nav = (function (_super) {
  * <ion-nav #mycontent [root]="rootPage"></ion-nav>
  * ```
  *
- * To add a menu to an app, the `<ion-menu>` element should be added as a sibling to the `ion-nav` it will belongs
+ * To add a menu to an app, the `<ion-menu>` element should be added as a sibling to the `ion-nav` it will belong
  * to. A [local variable](https://angular.io/docs/ts/latest/guide/user-input.html#local-variables)
  * should be added to the `ion-nav` and passed to the `ion-menu`s `content` property.
  *
@@ -52012,37 +52087,43 @@ var Modal = (function (_super) {
  * @Component(...)
  * class HomePage {
  *
- *  constructor(public modalCtrl: ModalController) {
+ *   constructor(public modalCtrl: ModalController) {
  *
- *  }
+ *   }
  *
- *  presentContactModal() {
- *    let contactModal = this.modalCtrl.create(ContactUs);
- *    contactModal.present();
- *  }
+ *   presentContactModal() {
+ *     let contactModal = this.modalCtrl.create(ContactUs);
+ *     contactModal.present();
+ *   }
  *
- *  presentProfileModal() {
- *    let profileModal = this.modalCtrl.create(Profile, { userId: 8675309 });
- *    profileModal.onDidDismiss(data => {
- *      console.log(data);
- *    });
- *    profileModal.present();
- *  }
+ *   presentProfileModal() {
+ *     let profileModal = this.modalCtrl.create(Profile, { userId: 8675309 });
  *
+ *     // fires after dismiss animation finishes
+ *     profileModal.onDidDismiss(data => {
+ *       console.log(data);
+ *     });
+ *
+ *     // fires before dismiss animation begins
+ *     profileModal.onWillDismiss(data => {
+ *       console.log(data);
+ *     });
+ *
+ *     profileModal.present();
+ *   }
  * }
  *
  * @Component(...)
  * class Profile {
  *
- *  constructor(public viewCtrl: ViewController) {
+ *   constructor(public viewCtrl: ViewController) {
  *
- *  }
+ *   }
  *
- *  dismiss() {
- *    let data = { 'foo': 'bar' };
- *    this.viewCtrl.dismiss(data);
- *  }
- *
+ *   dismiss() {
+ *     let data = { 'foo': 'bar' };
+ *     this.viewCtrl.dismiss(data);
+ *   }
  * }
  * ```
  *
@@ -55215,8 +55296,8 @@ var __extends$73 = (undefined && undefined.__extends) || (function () {
  * </ion-header>
  *
  * <ion-content>
- *   <!-- Segment in content -->
- *   <ion-segment [(ngModel)]="relationship" color="primary" (ionChange)="segmentChanged($event)">
+ *   <!-- Segment in content with material design mode on all devices -->
+ *   <ion-segment [(ngModel)]="relationship" color="primary" mode="md" (ionChange)="segmentChanged($event)">
  *     <ion-segment-button value="friends">
  *       Friends
  *     </ion-segment-button>
@@ -59352,7 +59433,7 @@ var __extends$77 = (undefined && undefined.__extends) || (function () {
  * ```
  *
  * To see all of the available options, take a look at the
- * [source for slides](https://github.com/ionic-team/ionic/blob/master/src/components/slides/slides.ts).
+ * [source for slides](https://github.com/ionic-team/ionic/blob/v3/src/components/slides/slides.ts).
  *
  * @demo /docs/demos/src/slides/
  * @see {@link /docs/components#slides Slides Component Docs}
@@ -61608,7 +61689,7 @@ var TabButton = (function (_super) {
     TabButton.decorators = [
         { type: Component, args: [{
                     selector: '.tab-button',
-                    template: '<ion-icon *ngIf="tab.tabIcon" [name]="tab.tabIcon" [isActive]="tab.isSelected" class="tab-button-icon"></ion-icon>' +
+                    template: '<ion-icon *ngIf="tab.tabIcon" [name]="tab.tabIcon" [attr.aria-hidden]="hasTitle ? \'true\' : null" [isActive]="tab.isSelected" class="tab-button-icon"></ion-icon>' +
                         '<span *ngIf="tab.tabTitle" class="tab-button-text">{{tab.tabTitle}}</span>' +
                         '<ion-badge *ngIf="tab.tabBadge" class="tab-badge" [color]="tab.tabBadgeStyle">{{tab.tabBadge}}</ion-badge>' +
                         '<div class="button-effect"></div>',
@@ -62188,7 +62269,7 @@ var __extends$84 = (undefined && undefined.__extends) || (function () {
  * Toggles can also have colors assigned to them, by adding any color
  * attribute.
  *
- * See the [Angular Docs](https://angular.io/docs/ts/latest/guide/forms.html)
+ * See the [Angular Docs](https://angular.io/docs/ts/latest/guide/forms)
  * for more info on forms and inputs.
  *
  * @usage
@@ -63662,6 +63743,10 @@ var VirtualScroll = (function () {
          * available for reuse while scrolling. For better performance, it's
          * better to have more cells than what are required to fill the
          * viewable area. Default is `3`.
+         * In case more than one items are rendered per row, bufferRatio
+         * has to account for that and a multiple number should be used.
+         * For example if a single item per row list used 3 as bufferRatio
+         * a 4 item per row list should use 3 * 4 = 12 as buffer ratio.
          */
         this.bufferRatio = 3;
         /**
@@ -64019,6 +64104,10 @@ var VirtualScroll = (function () {
      */
     VirtualScroll.prototype.scrollUpdate = function (ev) {
         var _this = this;
+        // ensure no empty are processed
+        if (!ev) {
+            return;
+        }
         // set the scroll top from the scroll event
         this._data.scrollTop = ev.scrollTop;
         // there is a queue system so that we can
@@ -64222,7 +64311,8 @@ var SCROLL_DIFFERENCE_MINIMUM = 40;
  *
  * The `@IonicPage` decorator accepts a `DeepLinkMetadataType` object. This object accepts
  * the following properties: `name`, `segment`, `defaultHistory`, and `priority`. All of them
- * are optional but can be used to create complex navigation links.
+ * are optional but can be used to create complex navigation links. The `name` and `segment`
+ * values must be unique.
  *
  *
  * ### Changing Name
@@ -64251,9 +64341,10 @@ var SCROLL_DIFFERENCE_MINIMUM = 40;
  * ### Setting URL Path
  *
  * The `segment` property is used to set the URL to the page. If this property isn't provided, the
- * `segment` will use the value of `name`. Since components can be loaded anywhere in the app, the
- * `segment` doesn't require a full URL path. When a page becomes the active page, the `segment` is
- * appended to the URL.
+ * `segment` will use the value of source file name without the extension (`'my-page.ts'` results
+ * in segment name `'my-page'`). Since components can be loaded anywhere in the app, the `segment`
+ * doesn't require a full URL path. When a page becomes the active page, the `segment` is appended
+ * to the URL.
  *
  * The `segment` can be changed to anything and doesn't have to match the `name`. For example, passing
  * a value for `name` and `segment`:
@@ -64374,7 +64465,7 @@ var SCROLL_DIFFERENCE_MINIMUM = 40;
  *
  * In this example, if the app is launched at `http://localhost:8101/#/contact/contact-more-info` the displayed page
  * will be the `'ContactMoreInfoPage'`. It will show a back button that will go to the `'ContactDetailPage'` which
- * will also show a back button which will go to the `'Constact'` page.
+ * will also show a back button which will go to the `'Contact'` page.
  *
  * An example of an application with a set history stack is the Instagram application. Opening a link
  * to an image on Instagram will show the details for that image with a back button to the user's profile
